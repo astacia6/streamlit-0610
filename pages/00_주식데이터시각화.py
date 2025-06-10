@@ -1,94 +1,56 @@
-import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 from datetime import datetime, timedelta
 
-def app():
-    st.title("글로벌 시가총액 탑 10 기업의 주가 변화 (최근 3년)")
+# 페이지 제목
+st.title("📈 글로벌 시총 TOP 10 기업 - 최근 3년 주가 변화")
 
-    tickers = {
-        "Microsoft": "MSFT",
-        "Nvidia": "NVDA",
-        "Apple": "AAPL",
-        "Amazon": "AMZN",
-        "Alphabet (Google)": "GOOGL",
-        "Meta Platforms": "META",
-        "Broadcom": "AVGO",
-        "TSMC": "TSM",
-        "Berkshire Hathaway": "BRK-B",
-        "Tesla": "TSLA"
-    }
+# 시총 상위 10개 기업 티커
+tickers = {
+    "Apple": "AAPL",
+    "Microsoft": "MSFT",
+    "Saudi Aramco": "2222.SR",  # 사우디 거래소
+    "Alphabet": "GOOGL",
+    "Amazon": "AMZN",
+    "Nvidia": "NVDA",
+    "Berkshire Hathaway": "BRK-B",
+    "Meta": "META",
+    "Tesla": "TSLA",
+    "TSMC": "TSM"
+}
 
-    selected_company_name = st.selectbox("기업을 선택하세요:", list(tickers.keys()))
-    selected_ticker = tickers[selected_company_name]
+# 기간 설정
+end_date = datetime.today()
+start_date = end_date - timedelta(days=365 * 3)
 
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=3 * 365) # Last 3 years
+# 주가 데이터 수집
+@st.cache_data(show_spinner=False)
+def load_data(ticker):
+    df = yf.download(ticker, start=start_date, end=end_date)
+    return df["Close"]
 
-    st.subheader(f"{selected_company_name} ({selected_ticker}) 주가 변화")
+# 데이터프레임 구성
+all_data = pd.DataFrame()
+for name, ticker in tickers.items():
+    data = load_data(ticker)
+    all_data[name] = data
 
-    @st.cache_data
-    def get_stock_data(ticker, start, end):
-        try:
-            data = yf.download(ticker, start=start, end=end)
-            if data.empty:
-                st.error(f"데이터를 가져오지 못했습니다: {ticker}. 티커를 확인해주세요.")
-                return None
-            return data
-        except Exception as e:
-            st.error(f"데이터를 가져오는 중 오류가 발생했습니다: {ticker} - {e}")
-            return None
+# 그래프 그리기
+fig = go.Figure()
+for name in all_data.columns:
+    fig.add_trace(go.Scatter(x=all_data.index, y=all_data[name], mode='lines', name=name))
 
-    stock_data = get_stock_data(selected_ticker, start_date, end_date)
+fig.update_layout(
+    title="시가총액 상위 10개 기업의 최근 3년간 종가 변화",
+    xaxis_title="날짜",
+    yaxis_title="주가 (USD 또는 해당 통화)",
+    legend_title="기업명",
+    hovermode="x unified"
+)
 
-    if stock_data is not None:
-        # Reset index to use 'Date' as a column for Plotly
-        stock_data = stock_data.reset_index()
+st.plotly_chart(fig, use_container_width=True)
 
-        # --- 디버깅 라인 시작 ---
-        st.write("--- 디버그 정보: stock_data ---")
-        st.write("컬럼:", stock_data.columns.tolist())
-        st.write("데이터 타입:", stock_data.dtypes)
-        st.write("'Date' 컬럼 존재 여부:", "Date" in stock_data.columns)
-        st.write("'Close' 컬럼 존재 여부:", "Close" in stock_data.columns)
-        if 'Date' in stock_data.columns and 'Close' in stock_data.columns:
-            st.write("처음 5행 (Date, Close):", stock_data[['Date', 'Close']].head())
-        st.write("stock_data 비어있는가?", stock_data.empty)
-        st.write("stock_data 형태 (rows, columns):", stock_data.shape)
-        st.write("--- 디버그 정보 끝 ---")
-        
-        # Plotly Express 호출 전에 필수 컬럼 존재 여부 재확인
-        if "Date" not in stock_data.columns or "Close" not in stock_data.columns:
-            st.error("오류: 주식 데이터에 'Date' 또는 'Close' 컬럼이 없습니다. 티커나 데이터 소스를 확인해주세요.")
-            return # 필수 컬럼이 없으면 함수를 종료합니다.
-
-        # Create interactive plot using Plotly Express
-        fig = px.line(stock_data, x="Date", y="Close", title=f"{selected_company_name} ({selected_ticker}) 주가",
-                      labels={"Close": "종가 (USD)", "Date": "날짜"},
-                      hover_data={"Date": "|%Y-%m-%d", "Close": ":.2f"})
-        
-        fig.update_xaxes(
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
-                    dict(count=3, label="3y", step="year", stepmode="backward"),
-                    dict(step="all")
-                ])
-            )
-        )
-        fig.update_layout(
-            hovermode="x unified",
-            xaxis_rangeslider_visible=True,
-            title_font_size=20,
-            title_x=0.5
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("데이터 미리보기")
-        st.dataframe(stock_data.tail())
-
-if __name__ == '__main__':
-    app()
+# 주의 문구
+st.caption("※ 일부 해외 거래소(예: 사우디)의 경우 주가 데이터가 제한될 수 있습니다.")
