@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 def app():
     st.title("글로벌 시가총액 탑 10 기업의 주가 변화 (최근 3년)")
 
-    # Top 10 global companies by market cap (as of June 2025, using common tickers)
-    # Using a list based on the search results, ensuring valid yfinance tickers
     tickers = {
         "Microsoft": "MSFT",
         "Nvidia": "NVDA",
@@ -47,6 +45,23 @@ def app():
     if stock_data is not None:
         # Reset index to use 'Date' as a column for Plotly
         stock_data = stock_data.reset_index()
+
+        # --- 디버깅 라인 시작 ---
+        st.write("--- 디버그 정보: stock_data ---")
+        st.write("컬럼:", stock_data.columns.tolist())
+        st.write("데이터 타입:", stock_data.dtypes)
+        st.write("'Date' 컬럼 존재 여부:", "Date" in stock_data.columns)
+        st.write("'Close' 컬럼 존재 여부:", "Close" in stock_data.columns)
+        if 'Date' in stock_data.columns and 'Close' in stock_data.columns:
+            st.write("처음 5행 (Date, Close):", stock_data[['Date', 'Close']].head())
+        st.write("stock_data 비어있는가?", stock_data.empty)
+        st.write("stock_data 형태 (rows, columns):", stock_data.shape)
+        st.write("--- 디버그 정보 끝 ---")
+        
+        # Plotly Express 호출 전에 필수 컬럼 존재 여부 재확인
+        if "Date" not in stock_data.columns or "Close" not in stock_data.columns:
+            st.error("오류: 주식 데이터에 'Date' 또는 'Close' 컬럼이 없습니다. 티커나 데이터 소스를 확인해주세요.")
+            return # 필수 컬럼이 없으면 함수를 종료합니다.
 
         # Create interactive plot using Plotly Express
         fig = px.line(stock_data, x="Date", y="Close", title=f"{selected_company_name} ({selected_ticker}) 주가",
